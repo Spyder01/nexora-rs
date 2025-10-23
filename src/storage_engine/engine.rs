@@ -81,11 +81,23 @@ impl StorageEngine {
     }
 
     /// Writes an offset table chunk to disk at the given offset.
-    pub async fn log_offset_chunk(&mut self, chunk: &OffsetTableChunk, offset: u64) -> Result<(), StorageError> {
+    async fn log_offset_chunk(&mut self, chunk: &OffsetTableChunk, offset: u64) -> Result<(), StorageError> {
         let buf = chunk.serialize();
         self.file_handle.seek(SeekFrom::Start(offset)).await?;
         self.file_handle.write_all(&buf).await?;
-        self.file_layout.seek(SeekFrom::Start(0)).await?;
+        self.file_handle.seek(SeekFrom::Start(0)).await?;
+        self.file_handle.flush().await?;
+        
+        self.log_footer_chunk();
+        Ok(())
+    }
+
+    /// Log footer val
+    async fn log_footer_chunk(&mut self) -> Result<(), StorageError> {
+        let buf = self.file_layout.footer.serialize();
+        self.file_handle.seek(SeekFrom::Start(self.file_layout.header.footer_offset)).await?;
+        self.file_handle.write_all(&buf).await?;
+        self.file_handle.seek(SeekFrom::Start(0)).await?;
         self.file_handle.flush().await?;
         Ok(())
     }
@@ -93,7 +105,7 @@ impl StorageEngine {
     /// Get new offset table space
     fn get_new_offset_table_space(&mut self) -> u64 {
         let new_chunk_path = self.file_layout.header.footer_offset;
-        self.file_layout.header.footer_offset += PAGE_SIZE;
+        self.file_layout.header.footer_offset += PAGE_SIZE as u64;
 
         new_chunk_path
     }
