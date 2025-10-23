@@ -167,6 +167,36 @@ impl NexoraFooter {
             _reserved: reserved,
         }
     }
+
+    pub fn serialize(&self) -> [u8; PAGE_SIZE] {
+        let mut buf = [0u8; PAGE_SIZE];
+        let mut offset = 0;
+
+        // Helper to write OffsetMetadataTable
+        fn write_offset_table(table: &OffsetMetadataTable, buf: &mut [u8], offset: &mut usize) {
+            write_u64_le(table.nb_total_items, &mut buf[*offset..*offset + 8]);
+            *offset += 8;
+            write_u64_le(table.base_chunk_offset, &mut buf[*offset..*offset + 8]);
+            *offset += 8;
+        }
+
+        write_offset_table(&self.name_table_offset, &mut buf, &mut offset);
+        write_offset_table(&self.node_schema_offset, &mut buf, &mut offset);
+        write_offset_table(&self.edge_schema_offset, &mut buf, &mut offset);
+        write_offset_table(&self.schema_properties_offset, &mut buf, &mut offset);
+        write_offset_table(&self.metadata_offset, &mut buf, &mut offset);
+        write_offset_table(&self.indices_offset, &mut buf, &mut offset);
+        write_offset_table(&self.nodes_offset, &mut buf, &mut offset);
+        write_offset_table(&self.edges_offset, &mut buf, &mut offset);
+
+        // Write reserved
+        buf[offset..offset + self._reserved.len()].copy_from_slice(&self._reserved);
+        offset += self._reserved.len();
+
+        assert_eq!(offset, PAGE_SIZE, "NexoraFooter serialization size mismatch");
+
+        buf
+    }
 }
 
 
